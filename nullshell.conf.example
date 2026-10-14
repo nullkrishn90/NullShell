@@ -1,0 +1,21 @@
+# NullShell config example — copy to your project as  nullshell.conf
+# (all keys optional; delete what you don't need)
+
+# Install compatibility (Android 5 -> 16+)
+MIN_SDK=21
+TARGET_SDK=30
+
+# Output APK name (blank = use app label / package)
+APP_NAME=
+
+# javac release: blank = auto try (9, 8, 11, 17)
+JAVAC_RELEASE=
+
+# --- signing (optional) ---
+# Default keystore is ~/.nullshell/nullshell.keystore
+# KEYSTORE=/sdcard/my.keystore
+# KS_PASS=mypassword
+# KS_ALIAS=mykey
+
+# 1 = produce an unsigned APK (not installable) ; blank = sign
+SKIP_SIGN=

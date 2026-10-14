@@ -1,0 +1,12 @@
+# NullShell — docker compose
+# Put your project(s) in ./projects and run:
+#   docker compose run --rm nullshell --all /work
+services:
+  nullshell:
+    build: .
+    image: nullshell:latest
+    working_dir: /work
+    volumes:
+      - ./projects:/work
+    entrypoint: ["nullshell"]
+    command: ["--all", "/work"]

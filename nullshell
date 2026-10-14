@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 #=====================================================================
-#   N U L L S H E L L   -   Termux Android APK Builder
-#   Builds ANY Java Android project into a signed, installable APK
-#   from inside Termux. No Android Studio. No Gradle. No PC.
+#   N U L L S H E L L   -   Termux Builder
+#   - Android APK build (Java + AndroidManifest.xml)
+#   - Pure Java (JVM) app build -> runnable .jar
 #
 #   OWNER     : Hari Jadhav Ji
 #   GitHub    : nullkrishn3
@@ -15,7 +15,6 @@ set -uo pipefail
 
 #=====================================================================
 #  OWNER IDENTITY BLOCK  --  DO NOT MODIFY
-#  Agar isme koi bhi change kiya, tool tamper detect karke BLOCK ho jayega.
 #=====================================================================
 OWNER_NAME="Hari Jadhav Ji"
 OWNER_TG="nullkrishn"
@@ -28,94 +27,65 @@ OWNER_SEAL="5ad32c9e691e13752e2b1f30fe22b523bf8e4af8d51f63df22240967697379f7"
 #=====================================================================
 
 TOOL_NAME="NullShell"
-TOOL_VER="1.4"
+TOOL_VER="2.2"
 
-# Modern SDK values forced at build time so the APK installs on Android 5 -> 16+
-# (override with env vars if you really need to)
 MINSDK="${NULLSHELL_MIN_SDK:-21}"
 TARGETSDK="${NULLSHELL_TARGET_SDK:-30}"
+APPNAME_OVERRIDE=""
+JAVAC_RELEASE=""
+SKIP_SIGN=""
+KSPASS="${NULLSHELL_KS_PASS:-nullshell123}"
+KSALIAS="${NULLSHELL_KS_ALIAS:-nullshellkey}"
 
 #---------------------------------------------------------------------
-# Colors (256-color) + log helpers
+# Colors + helpers
 #---------------------------------------------------------------------
-R=$'\033[1;38;5;196m'   # red
-O=$'\033[1;38;5;208m'   # orange
-Y=$'\033[1;38;5;226m'   # yellow
-GR=$'\033[1;38;5;46m'   # green
-CY=$'\033[1;38;5;51m'   # cyan
-BL=$'\033[1;38;5;39m'   # blue
-MG=$'\033[1;38;5;201m'  # magenta
-PK=$'\033[1;38;5;171m'  # pink
-W=$'\033[1;37m'         # white
-D=$'\033[2;37m'         # dim
-N=$'\033[0m'            # reset
+R=$'\033[1;38;5;196m'; O=$'\033[1;38;5;208m'; Y=$'\033[1;38;5;226m'
+GR=$'\033[1;38;5;46m'; CY=$'\033[1;38;5;51m'; BL=$'\033[1;38;5;39m'
+MG=$'\033[1;38;5;201m'; PK=$'\033[1;38;5;171m'; W=$'\033[1;37m'
+D=$'\033[2;37m'; N=$'\033[0m'
 
 log()  { printf '%s [>] %s %s\n'  "$CY" "$N" "$1"; }
 ok()   { printf '%s [OK] %s %s\n' "$GR" "$N" "$1"; }
 warn() { printf '%s [!] %s %s\n'  "$Y"  "$N" "$1"; }
 err()  { printf '%s [X] %s %s\n'  "$R"  "$N" "$1"; }
 die()  { err "$1"; echo; exit 1; }
+step() { local c; case "$1" in 1) c=$R;;2) c=$O;;3) c=$Y;;4) c=$GR;;5) c=$CY;;6) c=$MG;;*) c=$W;;esac
+  printf '%s   >> [%s]%s %s%s%s\n' "$c" "$1" "$N" "$W" "$2" "$N"; }
 
-# colorful per-step header (no boring rule lines)
-step() {
-  local c
-  case "$1" in
-    1) c=$R ;; 2) c=$O ;; 3) c=$Y ;;
-    4) c=$GR ;; 5) c=$CY ;; 6) c=$MG ;; *) c=$W ;;
-  esac
-  printf '%s   >> [%s/6]%s %s%s%s\n' "$c" "$1" "$N" "$W" "$2" "$N"
-}
-
-#---------------------------------------------------------------------
-# Colorful banner
-#---------------------------------------------------------------------
 banner() {
   local cols=(196 208 226 46 51 39 201 171 45)
   local letters=(N U L L S H E L L)
   local rb="" i
   for i in 0 1 2 3 4 5 6 7 8; do
     rb+=$'\033[1;38;5;'"${cols[$i]}"'m'"${letters[$i]}"$'\033[0m'
-    [ "$i" -lt 8 ] && rb+=" "
+    [ "$i" -lt 8 ] && rb+="   "
   done
-
+  printf '\n\n'
+  printf '         %s\n' "$rb"
   printf '\n'
-  printf '      %s\n' "$rb"
-  printf '      %sTermux Android APK Builder%s  %s.%s  %sv%s%s\n' \
-         "$W" "$N" "$D" "$N" "$PK" "$TOOL_VER" "$N"
-  printf '      %sJava%s %s>%s %sDEX%s %s>%s %sSigned APK%s\n' \
-         "$Y" "$N" "$D" "$N" "$O" "$N" "$D" "$N" "$GR" "$N"
+  printf '         %sA N D R O I D%s  %s+%s  %sJ A V A%s   %sB U I L D E R%s   %sv%s%s\n' \
+         "$GR" "$N" "$W" "$N" "$BL" "$N" "$MG" "$N" "$PK" "$TOOL_VER" "$N"
   printf '\n'
-  printf '      %s*%s %sOWNER%s      %s%s%s\n'  "$Y" "$N" "$D" "$N" "$Y" "$OWNER_NAME" "$N"
-  printf '      %s>%s %sGitHub%s     %s%s%s\n'  "$W" "$N" "$D" "$N" "$W" "$OWNER_GH" "$N"
-  printf '      %s>%s %sTelegram%s   %s%s%s\n'  "$BL" "$N" "$D" "$N" "$BL" "$OWNER_TG" "$N"
-  printf '      %s>%s %sInstagram%s  %s%s%s\n'  "$MG" "$N" "$D" "$N" "$MG" "$OWNER_IG" "$N"
-  printf '\n'
+  printf '         %s*%s  %sOWNER%s      %s%s%s\n'  "$Y" "$N" "$D" "$N" "$Y" "$OWNER_NAME" "$N"
+  printf '         %s>%s  %sGitHub%s     %s%s%s\n'  "$W" "$N" "$D" "$N" "$W" "$OWNER_GH" "$N"
+  printf '         %s>%s  %sTelegram%s   %s%s%s\n'  "$BL" "$N" "$D" "$N" "$BL" "$OWNER_TG" "$N"
+  printf '         %s>%s  %sInstagram%s  %s%s%s\n'  "$MG" "$N" "$D" "$N" "$MG" "$OWNER_IG" "$N"
+  printf '\n\n'
 }
 
 #---------------------------------------------------------------------
 # TAMPER PROTECTION
 #---------------------------------------------------------------------
-_owner_data() {
-  printf '%s' "${OWNER_NAME}|${OWNER_TG}|${OWNER_GH}|${OWNER_IG}|${OWNER_TGU}|${OWNER_GHU}|${OWNER_IGU}"
-}
-
+_owner_data() { printf '%s' "${OWNER_NAME}|${OWNER_TG}|${OWNER_GH}|${OWNER_IG}|${OWNER_TGU}|${OWNER_GHU}|${OWNER_IGU}"; }
 _sha256() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum | awk '{print $1}'
-  elif command -v openssl >/dev/null 2>&1; then
-    openssl dgst -sha256 | awk '{print $NF}'
-  else
-    echo "NO_HASH_TOOL"
-  fi
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum | awk '{print $1}'
+  elif command -v openssl >/dev/null 2>&1; then openssl dgst -sha256 | awk '{print $NF}'
+  else echo "NO_HASH_TOOL"; fi
 }
-
 verify_owner() {
-  local got
-  got="$(_owner_data | _sha256)"
-  if [ "$got" = "NO_HASH_TOOL" ]; then
-    err "Integrity engine (sha256sum/openssl) nahi mila."
-    die "Termux me 'pkg install coreutils' chalao."
-  fi
+  local got; got="$(_owner_data | _sha256)"
+  [ "$got" = "NO_HASH_TOOL" ] && { err "Integrity engine nahi mila."; die "pkg install coreutils"; }
   if [ "$got" != "$OWNER_SEAL" ]; then
     echo
     printf '%s############################################################%s\n' "$R" "$N"
@@ -123,179 +93,166 @@ verify_owner() {
     printf '%s#   Owner identity block modiya gaya hai.                  #%s\n' "$R" "$N"
     printf '%s#   %s band kar diya gaya hai. Build blocked.   #%s\n' "$R" "$TOOL_NAME" "$N"
     printf '%s#   Asli owner: Hari Jadhav Ji                            #%s\n' "$R" "$N"
-    printf '%s#   GitHub: nullkrishn3  Telegram: nullkrishn              #%s\n' "$R" "$N"
     printf '%s############################################################%s\n' "$R" "$N"
-    echo
-    exit 1
+    echo; exit 1
   fi
 }
 
 #---------------------------------------------------------------------
-# Paths / config
+# Paths
 #---------------------------------------------------------------------
-PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
-HOME_T="${HOME:-/data/data/com.termux/files/home}"
+# detect environment: Termux vs generic Linux / macOS
+IS_TERMUX=0
+if command -v pkg >/dev/null 2>&1 && [ -d /data/data/com.termux ]; then IS_TERMUX=1; fi
+if [ "$IS_TERMUX" = 1 ]; then
+  PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+  HOME_T="${HOME:-/data/data/com.termux/files/home}"
+else
+  PREFIX="${PREFIX:-$HOME/.local}"
+  HOME_T="${HOME:-/root}"
+fi
 BASE="$HOME_T/.nullshell"
 TOOLZ="$BASE/toolz"
 ANDROID_JAR="$TOOLZ/android.jar"
-KS="$BASE/nullshell.keystore"
-KSPASS="nullshell123"
-KSALIAS="nullshellkey"
+KS="${NULLSHELL_KS:-$BASE/nullshell.keystore}"
 SELF="$0"
 SELF_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
-
-#---------------------------------------------------------------------
-# 1. Environment checks
-#---------------------------------------------------------------------
-need_termux() {
-  [ -d "$PREFIX" ] || die "Yeh Termux me nahi chal raha. Pehle Termux install karo."
-  case "$(uname -m)" in
-    aarch64|armv7l|armv8l|i686|x86_64) : ;;
-    *) warn "Unknown CPU arch: $(uname -m) - try kar rahe hain." ;;
-  esac
+need_env() {
+  if [ "$IS_TERMUX" = 1 ]; then
+    [ -d /data/data/com.termux ] || die "Termux environment issue."
+  fi
+  # generic Linux/macOS is fine
 }
 
-#---------------------------------------------------------------------
-# 2. Install required packages (idempotent)
-#---------------------------------------------------------------------
 install_pkgs() {
-  log "Packages check kar raha hoon..."
-  pkg update -y >/dev/null 2>&1 || true
-  log "Zaroori tools install kar raha hoon..."
-  pkg install -y openjdk-17 aapt2 apksigner zip unzip curl wget coreutils \
-      >/dev/null 2>&1 || true
-  for p in d8 dx zipalign openssl; do
-    pkg install -y "$p" >/dev/null 2>&1 || true
-  done
-  ok "Packages ready."
+  local have=1
+  command -v aapt2     >/dev/null 2>&1 || have=0
+  command -v apksigner >/dev/null 2>&1 || have=0
+  { command -v d8 >/dev/null 2>&1 || command -v dx >/dev/null 2>&1; } || have=0
+  { command -v javac >/dev/null 2>&1 || ls "$PREFIX"/lib/jvm/java-*-openjdk/bin/javac >/dev/null 2>&1; } || have=0
+  [ "$have" = 1 ] && { ok "Tools ready (install skip)."; return; }
+
+  if [ "$IS_TERMUX" = 1 ]; then
+    log "Termux: tools install..."
+    pkg update -y >/dev/null 2>&1 || true
+    pkg install -y openjdk-17 aapt2 apksigner zip unzip curl wget coreutils >/dev/null 2>&1 || true
+    for p in d8 dx zipalign openssl; do pkg install -y "$p" >/dev/null 2>&1 || true; done
+  elif command -v apt-get >/dev/null 2>&1; then
+    log "Linux: installing Java + zip (apt)..."
+    if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=""; fi
+    $SUDO apt-get update -y >/dev/null 2>&1 || true
+    $SUDO apt-get install -y openjdk-17-jdk-headless zip unzip curl wget ca-certificates >/dev/null 2>&1 || true
+    warn "aapt2 / apksigner / d8 Linux repo me nahi hote - Android build-tools install karo (ya Docker use karo)."
+  else
+    warn "Package manager nahi mila - tools already installed hone chahiye."
+  fi
+  ok "Packages step done."
 }
 
-#---------------------------------------------------------------------
-# 3. Locate Java
-#---------------------------------------------------------------------
 setup_java() {
-  JAVA_HOME=""
-  for d in "$PREFIX"/lib/jvm/java-*-openjdk "$PREFIX"/opt/openjdk; do
-    [ -x "$d/bin/javac" ] && JAVA_HOME="$d"
-  done
-  [ -n "$JAVA_HOME" ] || die "Java (javac) nahi mila. 'pkg install openjdk-17' chalao."
-  export JAVA_HOME
-  export PATH="$JAVA_HOME/bin:$PATH"
-  ok "Java mil gaya: $($JAVA_HOME/bin/javac -version 2>&1)"
+  if [ -n "${JAVA_HOME:-}" ] && [ -x "${JAVA_HOME}/bin/javac" ]; then :; else
+    JAVA_HOME=""
+    for d in "$PREFIX"/lib/jvm/java-*-openjdk "$PREFIX"/opt/openjdk /usr/lib/jvm/*; do
+      [ -x "$d/bin/javac" ] && JAVA_HOME="$d"
+    done
+  fi
+  if [ -z "$JAVA_HOME" ] || [ ! -x "$JAVA_HOME/bin/javac" ]; then
+    if command -v javac >/dev/null 2>&1; then
+      JAVA_HOME="$(cd "$(dirname "$(command -v javac)")/.." && pwd)"
+    fi
+  fi
+  [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/javac" ] || die "Java (javac) nahi mila. Termux: pkg install openjdk-17 | Linux: apt install openjdk-17-jdk"
+  export JAVA_HOME; export PATH="$JAVA_HOME/bin:$PATH"
+  ok "Java: $($JAVA_HOME/bin/javac -version 2>&1)"
 }
 
-#---------------------------------------------------------------------
-# 4. Get android.jar (bundled first, download only as last resort)
-#---------------------------------------------------------------------
 get_android_jar() {
   mkdir -p "$TOOLZ"
-  if [ -f "$ANDROID_JAR" ] && [ -s "$ANDROID_JAR" ]; then
-    ok "android.jar pehle se ready hai."; return
-  fi
+  [ -s "$ANDROID_JAR" ] && { ok "android.jar ready."; return; }
   if [ -n "$SELF_DIR" ] && [ -s "$SELF_DIR/toolz/android.jar" ]; then
-    cp "$SELF_DIR/toolz/android.jar" "$ANDROID_JAR"
-    ok "Bundled android.jar use kiya (offline)."; return
+    cp "$SELF_DIR/toolz/android.jar" "$ANDROID_JAR"; ok "Bundled android.jar use kiya."; return
   fi
-  if [ -s "./toolz/android.jar" ]; then
-    cp ./toolz/android.jar "$ANDROID_JAR"; ok "android.jar project ke toolz/ se liya."; return
-  fi
-  log "android.jar download kar raha hoon (API 30 stubs)..."
-  local urls=(
+  [ -s "./toolz/android.jar" ] && { cp ./toolz/android.jar "$ANDROID_JAR"; ok "android.jar mil gaya."; return; }
+  # Android SDK platform jar (Linux / Docker / Windows+WSL)
+  local sdkjar
+  for sdkjar in "${ANDROID_SDK_ROOT:-}"/platforms/*/android.jar "${ANDROID_HOME:-}"/platforms/*/android.jar; do
+    [ -s "$sdkjar" ] && { cp "$sdkjar" "$ANDROID_JAR"; ok "android.jar Android SDK se liya."; return; }
+  done
+  log "android.jar download..."
+  local u urls=(
     "https://github.com/Sable/android-platforms/raw/master/android-30/android.jar"
-    "https://github.com/Sable/android-platforms/raw/master/android-33/android.jar"
     "https://raw.githubusercontent.com/Sable/android-platforms/master/android-30/android.jar"
   )
-  local u
   for u in "${urls[@]}"; do
-    if curl -L --fail --connect-timeout 20 -o "$ANDROID_JAR.tmp" "$u" 2>/dev/null \
-       && [ -s "$ANDROID_JAR.tmp" ]; then
-      mv "$ANDROID_JAR.tmp" "$ANDROID_JAR"; ok "android.jar download ho gaya."; return
+    if curl -L --fail --connect-timeout 20 -o "$ANDROID_JAR.tmp" "$u" 2>/dev/null && [ -s "$ANDROID_JAR.tmp" ]; then
+      mv "$ANDROID_JAR.tmp" "$ANDROID_JAR"; ok "android.jar mil gaya."; return
     fi
   done
-  rm -f "$ANDROID_JAR.tmp"
-  die "android.jar nahi mila. NullShell ke saath 'toolz/android.jar' rakho (zip me included hai)."
+  rm -f "$ANDROID_JAR.tmp"; warn "android.jar nahi mila (APK build ke liye zaroori)."
 }
 
-#---------------------------------------------------------------------
-# 5. Create signing keystore (once)
-#---------------------------------------------------------------------
 get_keystore() {
-  mkdir -p "$BASE"
-  if [ -f "$KS" ]; then ok "Signing keystore pehle se hai."; return; fi
-  log "Naya signing keystore bana raha hoon..."
-  keytool -genkeypair -keystore "$KS" -alias "$KSALIAS" \
-     -keyalg RSA -keysize 2048 -validity 10000 \
-     -storepass "$KSPASS" -keypass "$KSPASS" \
+  mkdir -p "$(dirname "$KS")"
+  [ -f "$KS" ] && { ok "Keystore ready."; return; }
+  keytool -genkeypair -keystore "$KS" -alias "$KSALIAS" -keyalg RSA -keysize 2048 \
+     -validity 10000 -storepass "$KSPASS" -keypass "$KSPASS" \
      -dname "CN=${TOOL_NAME}, O=Termux, C=IN" >/dev/null 2>&1 \
-     && ok "Keystore ready." || die "Keystore banane me error aaya."
+     && ok "Keystore ready." || die "Keystore fail."
 }
 
-#---------------------------------------------------------------------
-# 6. Detect build tools
-#---------------------------------------------------------------------
 pick_dexer() {
   if command -v d8 >/dev/null 2>&1; then DEXER="d8"
   elif command -v dx >/dev/null 2>&1; then DEXER="dx"
-  else die "d8/dx nahi mila. 'pkg install d8' chalao."; fi
-  ok "DEX converter: $DEXER"
+  else DEXER=""; fi
+  [ -n "$DEXER" ] && ok "DEX converter: $DEXER" || warn "d8/dx nahi mila (sirf Java build chalega)."
+}
+
+load_conf() {
+  [ -f "nullshell.conf" ] || return 0
+  local line k v
+  while IFS= read -r line; do
+    case "$line" in ''|\#*) continue;; esac
+    k="${line%%=*}"; v="${line#*=}"
+    k="$(printf '%s' "$k" | tr -d ' \t')"
+    v="$(printf '%s' "$v" | sed -E 's/^[ \t]+//; s/[ \t]+$//')"
+    case "$k" in
+      MIN_SDK) MINSDK="$v";; TARGET_SDK) TARGETSDK="$v";; APP_NAME) APPNAME_OVERRIDE="$v";;
+      KEYSTORE) KS="$v";; KS_PASS) KSPASS="$v";; KS_ALIAS) KSALIAS="$v";;
+      SKIP_SIGN) SKIP_SIGN="$v";; JAVAC_RELEASE) JAVAC_RELEASE="$v";;
+    esac
+  done < <(grep -vE '^[[:space:]]*(#|$)' "nullshell.conf")
+  ok "Config loaded."
 }
 
 #---------------------------------------------------------------------
-# Find AndroidManifest.xml (root or nested), or scaffold a starter app
+# Locate Android project
 #---------------------------------------------------------------------
-locate_or_scaffold() {
-  local root="$1"
-  cd "$root" 2>/dev/null || die "Folder nahi mila: $root"
-
-  [ -f AndroidManifest.xml ] && return 0
-
-  log "Manifest root me nahi hai - subfolders me dhundh raha hoon..."
+find_manifest() {
+  local cand
+  for cand in AndroidManifest.xml app/src/main/AndroidManifest.xml src/main/AndroidManifest.xml; do
+    [ -f "$cand" ] && { printf '%s' "$cand"; return 0; }
+  done
   local found
-  found=$(find . -maxdepth 4 -name AndroidManifest.xml \
-            -not -path '*/.nullshell-build/*' 2>/dev/null | head -1)
-  if [ -n "$found" ]; then
-    cd "$(dirname "$found")" || die "Manifest folder me ja nahi paya."
-    ok "Manifest mila: $PWD"
-    return 0
-  fi
-
-  local java_count
-  java_count=$(find . -maxdepth 4 -name '*.java' 2>/dev/null | wc -l | tr -d ' ')
-  if [ "$java_count" -gt 0 ]; then
-    warn "Yahan .java files hain lekin AndroidManifest.xml nahi mila."
-    die "Manifest ko project root me rakho, ya kisi aur folder par chalao."
-  fi
-
-  warn "Is folder me koi project nahi mila: $root"
-  log "Turant build test karne ke liye ek starter app bana raha hoon..."
-  scaffold_project "$root"
+  found=$(find . -maxdepth 5 -name AndroidManifest.xml -not -path '*/.nullshell-build/*' 2>/dev/null | head -1)
+  [ -n "$found" ] && printf '%s' "${found#./}"
 }
 
 scaffold_project() {
-  local root="$1"
-  cd "$root" 2>/dev/null || die "Folder me ja nahi paya: $root"
+  local root="$1"; cd "$root" 2>/dev/null || die "Folder me ja nahi paya: $root"
   local raw appname pkg pkgpath
   raw="$(basename "$root")"
-  appname="$(printf '%s' "$raw" | tr -cd 'A-Za-z0-9 _-')"
-  [ -z "$appname" ] && appname="NullApp"
+  appname="$(printf '%s' "$raw" | tr -cd 'A-Za-z0-9 _-')"; [ -z "$appname" ] && appname="NullApp"
   pkg="com.nullshell.$(printf '%s' "$raw" | tr -cd 'a-z0-9' | tr 'A-Z' 'a-z')"
   [ "$pkg" = "com.nullshell." ] && pkg="com.nullshell.app"
   pkgpath="$(printf '%s' "$pkg" | tr '.' '/')"
-
   mkdir -p "res/layout" "res/values" "src/$pkgpath"
-
   cat > AndroidManifest.xml <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="$pkg"
-    android:versionCode="1"
-    android:versionName="1.0">
+    package="$pkg" android:versionCode="1" android:versionName="1.0">
     <uses-sdk android:minSdkVersion="$MINSDK" android:targetSdkVersion="$TARGETSDK" />
-    <application
-        android:label="$appname"
-        android:allowBackup="true"
-        android:debuggable="true"
-        android:theme="@android:style/Theme.DeviceDefault">
+    <application android:label="$appname" android:allowBackup="true"
+        android:debuggable="true" android:theme="@android:style/Theme.DeviceDefault">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -305,263 +262,407 @@ scaffold_project() {
     </application>
 </manifest>
 EOF
-
   cat > res/values/strings.xml <<EOF
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">$appname</string>
-    <string name="tagline">NullShell se build hua - kisi bhi Android par install!</string>
-</resources>
+<resources><string name="app_name">$appname</string><string name="tagline">NullShell se build hua!</string></resources>
 EOF
-
   cat > res/layout/activity_main.xml <<'EOF'
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:background="#0D0D0D"
-    android:padding="24dp">
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/app_name"
-        android:textColor="#FF1744"
-        android:textSize="30sp"
-        android:textStyle="bold" />
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="@string/tagline"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp"
-        android:gravity="center" />
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:gravity="center" android:background="#0D0D0D" android:padding="24dp">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="@string/app_name" android:textColor="#FF1744" android:textSize="30sp" android:textStyle="bold" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" android:text="@string/tagline" android:textColor="#FFFFFF" android:textSize="16sp" />
 </LinearLayout>
 EOF
-
   cat > "src/$pkgpath/MainActivity.java" <<EOF
 package $pkg;
-
 import android.app.Activity;
 import android.os.Bundle;
 import android.widget.Toast;
-
 public class MainActivity extends Activity {
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Toast.makeText(this, "NullShell build OK!", Toast.LENGTH_LONG).show();
     }
 }
 EOF
-
   ok "Starter app bana diya (package: $pkg)."
 }
 
-#---------------------------------------------------------------------
-# Prepare a FIXED manifest copy (modern min/target SDK, no maxSdk block)
-# so the APK installs on any Android 5 -> 16+ device.
-#---------------------------------------------------------------------
+locate_or_scaffold() {
+  local root="$1"; cd "$root" 2>/dev/null || die "Folder nahi mila: $root"
+  local m; m="$(find_manifest)"
+  if [ -n "$m" ]; then cd "$(dirname "$m")" || die "Manifest folder me ja nahi paya."; ok "Manifest mila: $PWD"; return 0; fi
+  warn "Koi project nahi mila - starter app bana raha hoon..."
+  scaffold_project "$root"
+}
+
 prepare_manifest() {
-  local B="$1"
-  local M="$B/AndroidManifest.xml"
+  local B="$1"; local M="$B/AndroidManifest.xml"
   cp AndroidManifest.xml "$M"
-
-  # remove any maxSdkVersion (it would block install on newer devices)
+  # auto-generate a package name if the manifest has none
+  if ! grep -qE 'package="[^"]+"' "$M"; then
+    local apkg="com.nullshell.$(basename "$PWD" | tr -cd 'a-z0-9')"
+    [ "$apkg" = "com.nullshell." ] && apkg="com.nullshell.app"
+    sed -i -E "s#(<manifest)#\1 package=\"$apkg\"#" "$M"
+  fi
   sed -i -E 's/ *android:maxSdkVersion="[0-9]+"//g' "$M"
-
-  # override existing min/target sdk values
   sed -i -E "s/android:minSdkVersion=\"[0-9]+\"/android:minSdkVersion=\"$MINSDK\"/g" "$M"
   sed -i -E "s/android:targetSdkVersion=\"[0-9]+\"/android:targetSdkVersion=\"$TARGETSDK\"/g" "$M"
-
-  # if a <uses-sdk> exists but is missing one of the attributes, add it
   if grep -q '<uses-sdk' "$M"; then
     grep -q 'minSdkVersion' "$M"    || sed -i -E "s#(<uses-sdk)#\1 android:minSdkVersion=\"$MINSDK\"#" "$M"
     grep -q 'targetSdkVersion' "$M" || sed -i -E "s#(<uses-sdk)#\1 android:targetSdkVersion=\"$TARGETSDK\"#" "$M"
   fi
-  # if there is no <uses-sdk> at all, aapt2 flags below will inject one
+}
+
+collect_jars() {
+  JARS=()
+  local jd j
+  for jd in libs jars ../libs ../../libs ../../../libs app/libs; do
+    [ -d "$jd" ] || continue
+    while IFS= read -r j; do JARS+=("$j"); done < <(find "$jd" -maxdepth 2 -name '*.jar' 2>/dev/null)
+  done
+  JARCP=""
+  [ ${#JARS[@]} -gt 0 ] && { JARCP="$(printf '%s:' "${JARS[@]}")"; ok "${#JARS[@]} library jar mile."; }
+}
+
+collect_native() {
+  local B="$1" n=0 so abi d
+  mkdir -p "$B/native"
+  for d in lib jniLibs app/src/main/jniLibs app/libs; do
+    [ -d "$d" ] || continue
+    while IFS= read -r so; do
+      abi="$(basename "$(dirname "$so")")"
+      mkdir -p "$B/native/lib/$abi"; cp "$so" "$B/native/lib/$abi/" 2>/dev/null && n=$((n+1))
+    done < <(find "$d" -name '*.so' 2>/dev/null)
+  done
+  NATIVE_COUNT="$n"; [ "$n" -gt 0 ] && ok "$n native lib(s) mile."
+}
+
+show_javac_errors() {
+  local B="$1"
+  warn "Compile errors (pehle 10):"
+  grep -E 'error:' "$B/javac.log" 2>/dev/null | head -10 | sed "s/^/   ${R}|${N} /"
+  grep -qE 'package .* does not exist' "$B/javac.log" 2>/dev/null && \
+    printf '   %sHint: library missing -> us library ka .jar libs/ me rakho.%s\n' "$D" "$N"
+  printf '   %sFull log: %s%s\n' "$D" "$B/javac.log" "$N"
+}
+
+# android-mode compile (android.jar + jars)
+try_javac() {
+  local B="$1" rel="$2"
+  rm -rf "$B/classes"; mkdir -p "$B/classes"
+  if [ -n "$rel" ]; then
+    "$JAVA_HOME/bin/javac" --release "$rel" -encoding UTF-8 -d "$B/classes" -cp "$ANDROID_JAR:$JARCP" @"$B/sources.txt" > "$B/javac.log" 2>&1
+  else
+    "$JAVA_HOME/bin/javac" -encoding UTF-8 -d "$B/classes" -cp "$ANDROID_JAR:$JARCP" @"$B/sources.txt" > "$B/javac.log" 2>&1
+  fi
+}
+# plain-java compile (no android.jar)
+try_javac_plain() {
+  local B="$1" rel="$2"
+  rm -rf "$B/classes"; mkdir -p "$B/classes"
+  if [ -n "$rel" ]; then
+    "$JAVA_HOME/bin/javac" --release "$rel" -encoding UTF-8 -d "$B/classes" ${JARCP:+-cp "$JARCP"} @"$B/sources.txt" > "$B/javac.log" 2>&1
+  else
+    "$JAVA_HOME/bin/javac" -encoding UTF-8 -d "$B/classes" ${JARCP:+-cp "$JARCP"} @"$B/sources.txt" > "$B/javac.log" 2>&1
+  fi
 }
 
 #---------------------------------------------------------------------
-# 7. Build
+# ANDROID APK build
 #---------------------------------------------------------------------
-build_project() {
+build_apk() {
   local dir="${1:-$PWD}"
   locate_or_scaffold "$dir"
-
   [ -f AndroidManifest.xml ] || die "AndroidManifest.xml nahi mila: $PWD"
+  load_conf; get_keystore
+  [ -n "$DEXER" ] || die "APK build ke liye d8/dx chahiye (pkg install d8)."
+  [ -s "$ANDROID_JAR" ] || die "android.jar nahi mila."
 
-  log "Project: $PWD"
-
+  log "Project (Android): $PWD"
   local PKG LABEL NAME
   PKG=$(grep -oE 'package="[^"]+"' AndroidManifest.xml | head -1 | sed 's/package="//; s/"//')
   LABEL=$(grep -oE 'android:label="[^"]+"' AndroidManifest.xml | head -1 | sed 's/android:label="//; s/"//')
-  [ -z "$PKG" ] && die "AndroidManifest.xml me package= nahi mila."
+  if [ -z "$PKG" ]; then
+    PKG="com.nullshell.$(basename "$PWD" | tr -cd 'a-z0-9')"
+    [ "$PKG" = "com.nullshell." ] && PKG="com.nullshell.app"
+    warn "Manifest me package= nahi mila -> auto: $PKG"
+  fi
   case "$LABEL" in ""|@string/*) LABEL="${PKG##*.}";; esac
-  NAME=$(printf '%s' "$LABEL" | tr -d ' /\\:*?"<>|')
+  NAME=$(printf '%s' "$LABEL" | tr -d ' /\\:*?"<>|'); [ -n "$APPNAME_OVERRIDE" ] && NAME="$APPNAME_OVERRIDE"
 
-  printf '   %spackage%s   : %s\n   %sminSdk%s    : %s   %s(forced)%s\n   %stargetSdk%s : %s   %s(forced - install-friendly)%s\n   %sapp name%s  : %s\n' \
-         "$D" "$N" "$PKG" "$D" "$N" "$MINSDK" "$D" "$N" \
-         "$D" "$N" "$TARGETSDK" "$D" "$N" "$D" "$N" "$NAME"
+  printf '   %spackage%s   : %s\n   %sminSdk%s : %s %s(forced)%s   %stargetSdk%s : %s %s(forced)%s\n' \
+         "$D" "$N" "$PKG" "$D" "$N" "$MINSDK" "$D" "$N" "$D" "$N" "$TARGETSDK" "$D" "$N"
 
   local RESDIR="" ASSETDIR="" d
   for d in res app/src/main/res; do [ -d "$d" ] && RESDIR="$d" && break; done
   for d in assets app/src/main/assets; do [ -d "$d" ] && ASSETDIR="$d" && break; done
-
   local SRCDIRS=()
   for d in src java app/src/main/java gen; do [ -d "$d" ] && SRCDIRS+=("$d"); done
   [ ${#SRCDIRS[@]} -gt 0 ] || die "Koi source folder (src/ ya java/) nahi mila."
 
-  local B="$PWD/.nullshell-build"
-  rm -rf "$B"
-  mkdir -p "$B/gen" "$B/classes" "$B/dex" "$B/out"
-
-  # fixed manifest copy
-  prepare_manifest "$B"
+  collect_jars
+  local B="$PWD/.nullshell-build"; rm -rf "$B"; mkdir -p "$B/gen" "$B/classes" "$B/dex" "$B/out"
+  prepare_manifest "$B"; collect_native "$B"
 
   step 1 "Resources compile (aapt2)..."
   local LINK_INPUT=""
   if [ -n "$RESDIR" ]; then
-    aapt2 compile --dir "$RESDIR" -o "$B/res.zip" || die "aapt2 compile fail."
+    aapt2 compile --dir "$RESDIR" -o "$B/res.zip" 2> "$B/aapt2.log" || { grep -E 'error' "$B/aapt2.log" | head -5 | sed "s/^/   ${R}|${N} /"; die "aapt2 compile fail."; }
     LINK_INPUT="$B/res.zip"; ok "Resources compiled."
-  else
-    warn "res/ folder nahi mila - bina resources ke build."
-  fi
+  else warn "res/ nahi mila."; fi
 
   step 2 "Manifest + resources link (aapt2)..."
-  local LINK_ARGS=(-I "$ANDROID_JAR" --manifest "$B/AndroidManifest.xml"
-                   --java "$B/gen" -o "$B/out/base.apk" --auto-add-overlay
-                   --min-sdk-version "$MINSDK" --target-sdk-version "$TARGETSDK")
+  local LINK_ARGS=(-I "$ANDROID_JAR" --manifest "$B/AndroidManifest.xml" --java "$B/gen"
+                   -o "$B/out/base.apk" --auto-add-overlay --min-sdk-version "$MINSDK" --target-sdk-version "$TARGETSDK")
   [ -n "$ASSETDIR" ] && LINK_ARGS+=(-A "$ASSETDIR")
   [ -n "$LINK_INPUT" ] && LINK_ARGS+=("$LINK_INPUT")
-  aapt2 link "${LINK_ARGS[@]}" || die "aapt2 link fail. Manifest/resources check karo."
+  aapt2 link "${LINK_ARGS[@]}" 2> "$B/link.log" || { grep -E 'error' "$B/link.log" | head -8 | sed "s/^/   ${R}|${N} /"; die "aapt2 link fail."; }
   ok "Resources linked, R.java generated."
 
-  step 3 "Java compile (javac)..."
+  step 3 "Java compile (javac, auto-release)..."
   find "${SRCDIRS[@]}" -name '*.java' ! -name 'R.java' > "$B/sources.txt" 2>/dev/null
   find "$B/gen" -name '*.java' >> "$B/sources.txt" 2>/dev/null
-  [ -s "$B/sources.txt" ] || die "Koi .java file nahi mili. src/ folder me code hai?"
-  "$JAVA_HOME/bin/javac" --release 9 -encoding UTF-8 \
-      -d "$B/classes" -cp "$ANDROID_JAR" @"$B/sources.txt" \
-      || die "Java compile fail. Upar wala error dekho."
-  ok "Java compiled ($(wc -l < "$B/sources.txt") file)."
+  [ -s "$B/sources.txt" ] || die "Koi .java file nahi mili."
+  local compiled=0 rel
+  if [ -n "$JAVAC_RELEASE" ]; then try_javac "$B" "$JAVAC_RELEASE" && compiled=1
+  else for rel in 9 8 11 17; do try_javac "$B" "$rel" && { compiled=1; JAVAC_USED="$rel"; break; }; done; fi
+  [ "$compiled" = 1 ] || { show_javac_errors "$B"; die "Java compile fail."; }
+  ok "Java compiled ($(wc -l < "$B/sources.txt") file, release=${JAVAC_USED:-$JAVAC_RELEASE})."
 
-  step 4 "DEX convert ($DEXER)..."
-  local CLS=()
-  mapfile -t CLS < <(find "$B/classes" -name '*.class')
+  step 4 "DEX convert ($DEXER, multi-dex)..."
+  local CLS=(); mapfile -t CLS < <(find "$B/classes" -name '*.class')
   [ ${#CLS[@]} -gt 0 ] || die "Koi .class nahi bana."
   if [ "$DEXER" = "d8" ]; then
-    d8 --lib "$ANDROID_JAR" --min-api "$MINSDK" --output "$B/dex" "${CLS[@]}" \
-       || die "d8 fail. Library jar Java version check karo."
+    d8 --lib "$ANDROID_JAR" ${JARCP:+--classpath "$JARCP"} --min-api "$MINSDK" --output "$B/dex" "${JARS[@]}" "${CLS[@]}" 2> "$B/d8.log" \
+       || { grep -E 'error|Error' "$B/d8.log" | head -6 | sed "s/^/   ${R}|${N} /"; die "d8 fail."; }
   else
-    dx --dex --output="$B/dex/classes.dex" "${CLS[@]}" || die "dx fail."
+    dx --dex --output="$B/dex/classes.dex" ${JARCP:+--classpath "$JARCP"} "${CLS[@]}" 2> "$B/dx.log" || die "dx fail."
   fi
-  [ -f "$B/dex/classes.dex" ] || die "classes.dex nahi bana."
-  ok "classes.dex ready."
+  local DEXES=(); while IFS= read -r df; do DEXES+=("$df"); done < <(find "$B/dex" -name '*.dex')
+  [ ${#DEXES[@]} -gt 0 ] || die "Koi classes.dex nahi bana."
+  ok "${#DEXES[@]} dex file(s) ready."
 
   step 5 "Package + align..."
   cp "$B/out/base.apk" "$B/out/unsigned.apk"
-  zip -ujq "$B/out/unsigned.apk" "$B/dex/classes.dex" \
-      || die "classes.dex APK me add nahi hua."
+  zip -ujq "$B/out/unsigned.apk" "${DEXES[@]}" || die "dex add nahi hua."
+  [ -d "$B/native/lib" ] && { ( cd "$B/native" && zip -rq "$B/out/unsigned.apk" lib ) && ok "$NATIVE_COUNT native lib(s) added."; }
   if command -v zipalign >/dev/null 2>&1; then
-    zipalign -f -p 4 "$B/out/unsigned.apk" "$B/out/aligned.apk" \
-      && ok "APK aligned." || { cp "$B/out/unsigned.apk" "$B/out/aligned.apk"; warn "zipalign skip."; }
-  else
-    cp "$B/out/unsigned.apk" "$B/out/aligned.apk"; warn "zipalign nahi mila - skip."
-  fi
+    zipalign -f -p 4 "$B/out/unsigned.apk" "$B/out/aligned.apk" && ok "APK aligned." || { cp "$B/out/unsigned.apk" "$B/out/aligned.apk"; warn "zipalign skip."; }
+  else cp "$B/out/unsigned.apk" "$B/out/aligned.apk"; warn "zipalign skip."; fi
 
   step 6 "Sign (apksigner)..."
+  mkdir -p "NullShell"; local OUT="NullShell/${NAME}.apk"
+  if [ "$SKIP_SIGN" = "1" ]; then cp "$B/out/aligned.apk" "$OUT"; warn "SKIP_SIGN=1 -> unsigned."
+  else
+    apksigner sign --ks "$KS" --ks-pass "pass:$KSPASS" --ks-key-alias "$KSALIAS" --key-pass "pass:$KSPASS" \
+       --min-sdk-version "$MINSDK" --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+       --out "$OUT" "$B/out/aligned.apk" || die "apksigner fail."
+    ok "APK signed."
+    [ -d "$HOME_T/storage/downloads" ] && cp "$OUT" "$HOME_T/storage/downloads/${NAME}.apk" 2>/dev/null && ok "Copy: /sdcard/Download/${NAME}.apk"
+    apksigner verify "$OUT" >/dev/null 2>&1 && ok "Signature verify PASS" || warn "Verify fail."
+  fi
+  local SIZE; SIZE=$(du -h "$OUT" 2>/dev/null | cut -f1)
+  echo
+  printf '%s      *  APK  BUILD  SUCCESS  *%s\n' "$GR" "$N"
+  printf '      %sAPK%s    : %s%s%s\n'  "$D" "$N" "$W" "$PWD/$OUT" "$N"
+  printf '      %sSize%s   : %s%s%s\n'  "$D" "$N" "$CY" "$SIZE" "$N"
+  printf '      %sInstall%s: %stermux-open %s%s\n' "$D" "$N" "$GR" "$OUT" "$N"
+  printf '      %sBuilt by %s  %s.%s  %sOwner %s%s\n' "$D" "$N" "$TOOL_NAME" "$D" "$N" "$D" "$OWNER_NAME" "$N"
+  echo
+}
+
+#---------------------------------------------------------------------
+# PURE JAVA (JVM) build -> runnable .jar
+#---------------------------------------------------------------------
+detect_main() {
+  local srcfile="$1" f cls pkg
+  while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    if grep -qE 'public[[:space:]]+static[[:space:]]+void[[:space:]]+main[[:space:]]*\(' "$f"; then
+      cls="$(basename "$f" .java)"
+      pkg="$(grep -oE '^[[:space:]]*package[[:space:]]+[A-Za-z0-9_.]+' "$f" | head -1 | sed -E 's/.*package[[:space:]]+//')"
+      if [ -n "$pkg" ]; then printf '%s.%s' "$pkg" "$cls"; else printf '%s' "$cls"; fi
+      return 0
+    fi
+  done < "$srcfile"
+  return 1
+}
+
+build_jar() {
+  local dir="${1:-$PWD}"
+  cd "$dir" 2>/dev/null || die "Folder nahi mila: $dir"
+  load_conf
+  log "Project (Java/JVM): $PWD"
+
+  local SRCDIRS=() d
+  for d in src java Java app/src/main/java; do [ -d "$d" ] && SRCDIRS+=("$d"); done
+  [ ${#SRCDIRS[@]} -eq 0 ] && SRCDIRS=(".")
+  collect_jars
+
+  local B="$PWD/.nullshell-build"; rm -rf "$B"; mkdir -p "$B/classes" "$B/out"
+  find "${SRCDIRS[@]}" -name '*.java' 2>/dev/null | sort -u > "$B/sources.txt"
+  [ -s "$B/sources.txt" ] || die "Koi .java file nahi mili."
+  ok "$(wc -l < "$B/sources.txt") java file mili."
+
+  step 1 "Java compile (javac, auto-release)..."
+  local compiled=0 rel
+  if [ -n "$JAVAC_RELEASE" ]; then try_javac_plain "$B" "$JAVAC_RELEASE" && compiled=1
+  else for rel in 9 8 11 17; do try_javac_plain "$B" "$rel" && { compiled=1; JAVAC_USED="$rel"; break; }; done; fi
+  [ "$compiled" = 1 ] || { show_javac_errors "$B"; die "Java compile fail."; }
+  ok "Compiled (release=${JAVAC_USED:-$JAVAC_RELEASE})."
+
+  step 2 "Main class detect..."
+  local MAIN; MAIN="$(detect_main "$B/sources.txt")"
+  [ -n "$MAIN" ] || die "public static void main(...) nahi mila. (Java app ke liye main() zaroori hai.)"
+  ok "Main-Class: $MAIN"
+
+  step 3 "JAR package..."
+  printf 'Manifest-Version: 1.0\nMain-Class: %s\n\n' "$MAIN" > "$B/manifest.mf"
   mkdir -p "NullShell"
-  local OUT="NullShell/${NAME}.apk"
-  apksigner sign --ks "$KS" --ks-pass "pass:$KSPASS" --ks-key-alias "$KSALIAS" \
-     --key-pass "pass:$KSPASS" --min-sdk-version "$MINSDK" \
-     --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
-     --out "$OUT" "$B/out/aligned.apk" \
-     || die "apksigner fail."
-  ok "APK signed."
+  local NAME; NAME="$(basename "$PWD")"; [ -n "$APPNAME_OVERRIDE" ] && NAME="$APPNAME_OVERRIDE"
+  local OUT="NullShell/${NAME}.jar"
+  local OUTABS="$PWD/$OUT"
+  ( cd "$B/classes" && "$JAVA_HOME/bin/jar" cfm "$OUTABS" "$B/manifest.mf" . ) \
+     || die "jar banane me fail."
+  ok "JAR ready."
+  cp "$OUT" "NullShell/app.jar" 2>/dev/null   # stable name (folder-naam se independent)
 
-  if [ -d "$HOME_T/storage/downloads" ]; then
-    cp "$OUT" "$HOME_T/storage/downloads/${NAME}.apk" 2>/dev/null && \
-      ok "Copy: /sdcard/Download/${NAME}.apk"
+  # launcher (+ libs if any)
+  if [ ${#JARS[@]} -gt 0 ]; then
+    mkdir -p "NullShell/lib"; cp "${JARS[@]}" "NullShell/lib/" 2>/dev/null
+    printf '#!/system/bin/sh\nDIR=$(dirname "$0")\nexec java -cp "$DIR/app.jar:$DIR/lib/*" %s "$@"\n' "$MAIN" > "NullShell/run.sh"
+    ok "${#JARS[@]} library jar saath rakhe."
+  else
+    printf '#!/system/bin/sh\nDIR=$(dirname "$0")\nexec java -jar "$DIR/app.jar" "$@"\n' > "NullShell/run.sh"
   fi
-
-  # verify signature + show sdk
-  command -v apksigner >/dev/null 2>&1 && \
-    { apksigner verify "$OUT" >/dev/null 2>&1 && ok "Signature verify PASS" || warn "Verify fail."; }
-  if command -v aapt2 >/dev/null 2>&1; then
-    local SDKINFO
-    SDKINFO=$(aapt2 dump badging "$OUT" 2>/dev/null | grep -E "sdkVersion|targetSdkVersion" | head -2)
-    [ -n "$SDKINFO" ] && printf '   %s%s%s\n' "$D" "$SDKINFO" "$N"
-  fi
+  chmod +x "NullShell/run.sh" 2>/dev/null
 
   local SIZE; SIZE=$(du -h "$OUT" 2>/dev/null | cut -f1)
   echo
-  printf '%s      ★  BUILD  SUCCESS  ★%s\n' "$GR" "$N"
-  printf '      %sAPK%s    : %s%s%s\n'  "$D" "$N" "$W" "$PWD/$OUT" "$N"
-  printf '      %sSize%s   : %s%s%s\n'  "$D" "$N" "$CY" "$SIZE" "$N"
-  printf '      %sminSDK%s : %s%s%s    %stargetSDK%s : %s%s%s\n' \
-         "$D" "$N" "$Y" "$MINSDK" "$N" "$D" "$N" "$Y" "$TARGETSDK" "$N"
-  printf '      %sInstall%s: %stermux-open %s%s\n' "$D" "$N" "$GR" "$OUT" "$N"
-  printf '      %sBuilt by %s%s  %s.%s  %sOwner %s%s\n' \
-         "$D" "$N" "$TOOL_NAME" "$D" "$N" "$D" "$OWNER_NAME" "$N"
-  printf '      %sTip: agar "App not installed" aaye to purana version pehle uninstall karo.%s\n' "$D" "$N"
+  printf '%s      *  JAVA  BUILD  SUCCESS  *%s\n' "$GR" "$N"
+  printf '      %sJAR%s    : %s%s%s\n' "$D" "$N" "$W" "$PWD/$OUT" "$N"
+  printf '      %sAlso%s   : %sNullShell/app.jar%s  %s(stable naam)%s\n' "$D" "$N" "$W" "$N" "$D" "$N"
+  printf '      %sMain%s   : %s%s%s\n' "$D" "$N" "$CY" "$MAIN" "$N"
+  printf '      %sSize%s   : %s%s%s\n' "$D" "$N" "$CY" "$SIZE" "$N"
+  printf '      %sRun%s    : %sjava -jar NullShell/app.jar%s   %s(ya: sh NullShell/run.sh)%s\n' "$D" "$N" "$GR" "$N" "$D" "$N"
+  printf '      %sBuilt by %s  %s.%s  %sOwner %s%s\n' "$D" "$N" "$TOOL_NAME" "$D" "$N" "$D" "$OWNER_NAME" "$N"
   echo
 }
 
 #---------------------------------------------------------------------
-# Install self as a GLOBAL command (works after closing Termux too)
+# Dispatch: Android (manifest) vs Java (main)
 #---------------------------------------------------------------------
-install_self() {
-  mkdir -p "$PREFIX/bin" "$TOOLZ"
-  if [ -f "$SELF" ]; then
-    cp "$SELF" "$PREFIX/bin/nullshell" 2>/dev/null || cat "$SELF" > "$PREFIX/bin/nullshell"
-  else
-    die "Install fail: script file nahi mila ($SELF)."
+dispatch_build() {
+  local dir="${1:-$PWD}"
+  cd "$dir" 2>/dev/null || die "Folder nahi mila: $dir"
+
+  # 1) Android project here?
+  local m; m="$(find_manifest)"
+  if [ -n "$m" ]; then build_apk "$PWD"; return; fi
+
+  # 2) Pure Java project here? (top-level .java, or src/ java/ folder)
+  local selfjava=0
+  [ -n "$(find . -maxdepth 1 -name '*.java' 2>/dev/null | head -1)" ] && selfjava=1
+  { [ -d src ] || [ -d java ] || [ -d Java ]; } && selfjava=1
+  if [ "$selfjava" = 1 ]; then
+    log "Java (JVM) mode."
+    build_jar "$PWD"; return
   fi
-  chmod +x "$PREFIX/bin/nullshell"
-  cp "$PREFIX/bin/nullshell" "$PREFIX/bin/NullShell" 2>/dev/null
-  chmod +x "$PREFIX/bin/NullShell"
-  if [ ! -s "$ANDROID_JAR" ]; then
-    if [ -n "$SELF_DIR" ] && [ -s "$SELF_DIR/toolz/android.jar" ]; then
-      cp "$SELF_DIR/toolz/android.jar" "$ANDROID_JAR"
-      ok "android.jar bhi install kar diya (offline ready)."
-    elif [ -s "./toolz/android.jar" ]; then
-      cp "./toolz/android.jar" "$ANDROID_JAR"
-      ok "android.jar bhi install kar diya (offline ready)."
+
+  # 3) no project at this level -> build EVERY buildable subfolder (app/, Java/, ...)
+  local subs=() d
+  for d in */; do
+    [ -d "$d" ] || continue
+    d="${d%/}"
+    case "$d" in .nullshell-build|toolz|NullShell) continue ;; esac
+    if [ -f "$d/AndroidManifest.xml" ] || [ -f "$d/app/src/main/AndroidManifest.xml" ] \
+       || find "$d" -maxdepth 3 -name '*.java' 2>/dev/null | grep -q .; then
+      subs+=("$d")
     fi
+  done
+  if [ ${#subs[@]} -gt 0 ]; then
+    log "Multiple projects mile - sab build kar raha hoon: ${subs[*]}"
+    for d in "${subs[@]}"; do
+      echo
+      printf '%s   =================  %s  =================%s\n' "$CY" "$d" "$N"
+      dispatch_build "$PWD/$d"
+    done
+    return
   fi
-  ok "GLOBAL install ho gaya!"
-  printf '   Ab Termux band karne ke baad bhi, kisi bhi folder me sirf likho:\n'
-  printf '        %sNullShell%s     (ya  %snullshell%s)\n' "$GR" "$N" "$GR" "$N"
-  printf '   Wahi folder build hoga jisme aap khade ho.\n'
+
+  # 4) nothing anywhere -> scaffold an Android project and build it
+  build_apk "$PWD"
 }
 
-#---------------------------------------------------------------------
-# Help / owner
-#---------------------------------------------------------------------
+build_all() {
+  local dir="${1:-$PWD}"; cd "$dir" 2>/dev/null || die "Folder nahi mila: $dir"
+  local subs=() d
+  for d in */; do
+    [ -d "$d" ] || continue
+    d="${d%/}"
+    case "$d" in .nullshell-build|toolz|NullShell) continue ;; esac
+    if [ -f "$d/AndroidManifest.xml" ] || [ -f "$d/app/src/main/AndroidManifest.xml" ] \
+       || find "$d" -maxdepth 3 -name '*.java' 2>/dev/null | grep -q .; then
+      subs+=("$d")
+    fi
+  done
+  [ ${#subs[@]} -gt 0 ] || die "Koi buildable sub-project nahi mila."
+  log "Sab build kar raha hoon: ${subs[*]}"
+  for d in "${subs[@]}"; do
+    echo; printf '%s   =================  %s  =================%s\n' "$CY" "$d" "$N"
+    dispatch_build "$PWD/$d"
+  done
+}
+
+clean_all() {
+  local dir="${1:-$PWD}"
+  cd "$dir" 2>/dev/null || die "Folder nahi mila: $dir"
+  find "$PWD" -maxdepth 4 -type d -name '.nullshell-build' -exec rm -rf {} + 2>/dev/null
+  rm -rf "$PWD/NullShell"
+  ok "Clean done."
+}
+
+install_self() {
+  mkdir -p "$PREFIX/bin" "$TOOLZ"
+  [ -f "$SELF" ] && { cp "$SELF" "$PREFIX/bin/nullshell" 2>/dev/null || cat "$SELF" > "$PREFIX/bin/nullshell"; } || die "Install fail."
+  chmod +x "$PREFIX/bin/nullshell"; cp "$PREFIX/bin/nullshell" "$PREFIX/bin/NullShell" 2>/dev/null; chmod +x "$PREFIX/bin/NullShell"
+  if [ ! -s "$ANDROID_JAR" ]; then
+    if [ -n "$SELF_DIR" ] && [ -s "$SELF_DIR/toolz/android.jar" ]; then cp "$SELF_DIR/toolz/android.jar" "$ANDROID_JAR"; ok "android.jar install (offline ready)."
+    elif [ -s "./toolz/android.jar" ]; then cp "./toolz/android.jar" "$ANDROID_JAR"; ok "android.jar install (offline ready)."; fi
+  fi
+  ok "GLOBAL install ho gaya! Kahin bhi likho:  NullShell"
+}
+
 usage() {
 cat <<EOF
 
-${TOOL_NAME} v${TOOL_VER}  -  Termux Android APK Builder
+${TOOL_NAME} v${TOOL_VER}  -  Termux Builder (Android APK + Pure Java JAR)
 Owner: ${OWNER_NAME}  |  GitHub: ${OWNER_GH}  |  Telegram: ${OWNER_TG}
 
 Usage:
-  NullShell                 -> current folder ko build karo
-  NullShell /path/to/proj   -> us folder ko build karo (nested manifest bhi dhundta hai)
-  NullShell --setup         -> sirf tools install/setup karo
-  NullShell --install       -> GLOBAL command bana do (NullShell / nullshell)
-  NullShell --owner         -> owner details
-  NullShell --help          -> yeh help
+  NullShell                 -> auto-detect: APK (manifest) ya JAR (Java main)
+  NullShell /path/to/proj   -> us folder ko build karo
+  NullShell --jar [dir]     -> force Pure Java (JVM) .jar build
+  NullShell --run [dir]     -> Pure Java build karke turant chalao
+  NullShell --all [dir]     -> us folder ke SAARE sub-projects (app/, Java/) build karo
+  NullShell --apk [dir]     -> force Android APK build
+  NullShell --setup         -> tools setup
+  NullShell --install       -> GLOBAL command bana do
+  NullShell --clean [dir]   -> build artifacts hatao
+  NullShell --owner / --help
 
-Apna saara code ek hi folder me rakho, us folder me jao, aur likho:  NullShell
-- Build ke waqt minSdk=${MINSDK}, targetSdk=${TARGETSDK} force hote hain
-  (purana manifest bhi chalega) -> Android 5 se 16+ tak install.
-- Manifest root me na ho to subfolders me dhundh leta hai.
-- android.jar zip me bundled hai - internet ke bina bhi chalta hai.
-Har build ke baad APK:  <project>/NullShell/<AppName>.apk
+Modes:
+  * Android APK  - folder me AndroidManifest.xml ho (src/ + res/).
+  * Pure Java    - folder me sirf .java ho with  public static void main(...)
+                   -> runnable .jar (+ run.sh) banega. Swing/dialog apps bhi.
+  * libs/*.jar auto classpath; lib/<abi>/*.so auto packed (APK).
+APK:  <project>/NullShell/<AppName>.apk   |   JAR: <project>/NullShell/<Name>.jar
 EOF
 }
 
@@ -569,37 +670,35 @@ show_owner() {
   printf '\n'
   printf '   %sTool%s    : %s v%s\n' "$D" "$N" "$TOOL_NAME" "$TOOL_VER"
   printf '   %sOwner%s   : %s%s%s\n' "$D" "$N" "$Y" "$OWNER_NAME" "$N"
-  printf '   %sGitHub%s  : %s%s%s  (%s)\n' "$D" "$N" "$W" "$OWNER_GH" "$N" "$OWNER_GHU"
-  printf '   %sTelegram%s: %s%s%s  (%s)\n' "$D" "$N" "$BL" "$OWNER_TG" "$N" "$OWNER_TGU"
-  printf '   %sInsta%s   : %s%s%s  (%s)\n' "$D" "$N" "$MG" "$OWNER_IG" "$N" "$OWNER_IGU"
+  printf '   %sGitHub%s  : %s%s%s\n' "$D" "$N" "$W" "$OWNER_GH" "$N"
+  printf '   %sTelegram%s: %s%s%s\n' "$D" "$N" "$BL" "$OWNER_TG" "$N"
+  printf '   %sInsta%s   : %s%s%s\n' "$D" "$N" "$MG" "$OWNER_IG" "$N"
   printf '\n'
 }
 
-#---------------------------------------------------------------------
-# Main
-#---------------------------------------------------------------------
 main() {
   verify_owner
   command -v clear >/dev/null 2>&1 && clear
   banner
-  need_termux
-
+  need_env
   case "${1:-}" in
     --help|-h) usage; exit 0 ;;
     --owner) show_owner; exit 0 ;;
     --version|-v) echo "$TOOL_NAME v$TOOL_VER"; exit 0 ;;
   esac
-
   install_pkgs
   setup_java
   get_android_jar
-  get_keystore
   pick_dexer
-
   case "${1:-}" in
-    --setup) ok "Setup complete. Ab 'NullShell' chalao build ke liye."; exit 0 ;;
+    --setup) get_keystore; ok "Setup complete."; exit 0 ;;
     --install) install_self; exit 0 ;;
-    *) build_project "${1:-$PWD}" ;;
+    --clean) clean_all "${2:-$PWD}"; exit 0 ;;
+    --all) build_all "${2:-$PWD}"; exit 0 ;;
+    --jar) build_jar "${2:-$PWD}"; exit 0 ;;
+    --apk) build_apk "${2:-$PWD}"; exit 0 ;;
+    --run) build_jar "${2:-$PWD}"; cd "${2:-$PWD}" 2>/dev/null; [ -f NullShell/app.jar ] && java -jar NullShell/app.jar || warn "JAR nahi mila."; exit 0 ;;
+    *) dispatch_build "${1:-$PWD}" ;;
   esac
 }
 

@@ -1,17 +1,13 @@
 # NullShell
-<img width="3520" height="920" alt="110540" src="https://github.com/user-attachments/assets/180b0dcd-ac26-48f7-bab5-c9eacd6c37a3" />
 
-**Build any Java Android app into a signed, installable APK — right inside Termux.**
+**Build Android APKs *and* pure Java (JVM) apps — right inside Termux.**
 No Android Studio. No Gradle. No PC. Just one command.
 
 ![Platform](https://img.shields.io/badge/Platform-Termux-black?style=for-the-badge)
-![Language](https://img.shields.io/badge/Java-Build-red?style=for-the-badge)
+![Language](https://img.shields.io/badge/Java%20%2B%20Android-Build-red?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
-![Version](https://img.shields.io/badge/Version-1.4-green?style=for-the-badge)
-## Contributors
+![Version](https://img.shields.io/badge/Version-2.1-green?style=for-the-badge)
 
-- [@krishn-145](https://github.com/krishn-145)
-- [@kalidroid](https://github.com/kalidrod)
 ---
 
 ## 👤 Owner
@@ -28,25 +24,38 @@ No Android Studio. No Gradle. No PC. Just one command.
 
 </div>
 
-> **NullShell** is created and owned by **Hari Jadhav Ji**. The owner identity block is
-> tamper-protected — see [Protection](#-tamper-protection).
+> **NullShell** is created and owned by **Hari Jadhav Ji**. The owner block is tamper-protected.
+
+---
+
+## ✨ Two build modes (auto-detected)
+
+| Mode | When | Output |
+|---|---|---|
+| 🤖 **Android APK** | folder has `AndroidManifest.xml` | signed `.apk` |
+| ☕ **Pure Java (JVM)** | folder has `.java` with `public static void main(...)` | runnable `.jar` (+ `run.sh`) |
+
+NullShell auto-detects which one to do. Force with `--apk` or `--jar`.
 
 ---
 
 ## ✨ Features
 
-- 🚀 **One command build** — put all your code in one folder, run `NullShell`, get an APK.
-- 📱 **Installs on ANY device (Android 5 → 16+)** — forces a modern, install-friendly
-  `minSdk`/`targetSdk` at build time, so old manifests don't cause "App not installed".
-- 🧰 **Auto setup** — installs Java, `aapt2`, `apksigner`, `d8`/`dx`, `zip` on first run.
-- 📦 **Bundled `android.jar`** — ships inside the package, so **no internet download** needed.
-- 🔎 **Smart manifest discovery** — finds `AndroidManifest.xml` even in nested subfolders.
-- 🪄 **Auto starter app** — if a folder has no project, it scaffolds a working demo and builds it.
-- 🌈 **Colorful banner + colored steps** — bright, clean terminal output.
-- 🌐 **Global command** — `NullShell` works from any folder, even after you close Termux.
-- 🔐 **Auto signing** — debug keystore, signed with v1 + v2 + v3 schemes.
-- ♻️ **AIDE Pro friendly** — understands `src/`, `java/`, `gen/` and `app/src/main/` layouts.
-- 🛡️ **Tamper protected** — owner block cannot be changed without blocking the tool.
+- 🚀 **One command** — `NullShell` and you get a build.
+- ☕ **Pure Java apps** — console apps, Swing/`JOptionPane` dialog apps → runnable JAR.
+- 🧩 **Multi-dex** — big Android apps get `classes.dex`, `classes2.dex`, ...
+- 📚 **Library support** — `libs/*.jar` (or `jars/`, `app/libs/`) → classpath **and** dex.
+- 🧱 **Native libs** — `lib/<abi>/*.so`, `jniLibs/` packed into the APK.
+- 🏗️ **Two layouts** — flat **and** Android Studio (`app/src/main/...`).
+- 🧠 **javac auto-release** — tries `--release 9 → 8 → 11 → 17`.
+- ⚙️ **Config file** — `nullshell.conf`.
+- 🔑 **Custom keystore** — sign with your own key.
+- 🧹 **`--clean`** · 📄 build logs · 🧠 clear error hints.
+- 📱 **Installs on ANY device (Android 5 → 16+)** — forces `minSdk 21` / `targetSdk 30`.
+- 📦 **Bundled `android.jar`** — offline APK builds.
+- 🌈 **Big colorful banner**; screen clears before build.
+- 🌐 **Global command** — `NullShell` from any folder.
+- 🛡️ **Tamper protected** owner block.
 
 ---
 
@@ -55,120 +64,124 @@ No Android Studio. No Gradle. No PC. Just one command.
 ```bash
 pkg update && pkg upgrade -y
 termux-setup-storage
-git clone https://GitHub.com/nullkrishn90/NullShell.git
-cd NullShell
-chmod +x install.sh
-bash install.sh
+bash install.sh            # from inside the NullShell folder
 ```
-# Start 
-```
-chmod +x nullshell
-./nullshell /folder/name/download
-```
-chmod +x 
-`install.sh` runs `bash nullshell --install`, which copies the tool (and the bundled
-`android.jar`) so you can call `NullShell` from anywhere.
 
-> ⚠️ **`Is a directory` error?** If you extracted the ZIP you get a **folder** named
-> `NullShell`. Run the script **inside** it: `bash ~/NullShell/nullshell`, or just run
-> `bash ~/NullShell/install.sh` once — after that type `NullShell` anywhere.
+> ⚠️ **`Is a directory` error?** The ZIP extracts to a **folder** named `NullShell`.
+> Run `bash ~/NullShell/nullshell`, or `bash ~/NullShell/install.sh` once.
 
 ---
 
 ## 🚀 Usage
 
+**Android app:**
 ```bash
 mkdir -p ~/myapp && cd ~/myapp
-# put AndroidManifest.xml, src/, res/ here (all your code)
+# AndroidManifest.xml + src/ + res/ ...
 NullShell
+# -> ~/myapp/NullShell/<AppName>.apk
 ```
 
-The signed APK appears at `~/myapp/NullShell/<AppName>.apk` and is also copied to
-`/sdcard/Download/`.
+**Pure Java app:**
+```bash
+mkdir -p ~/javafolder && cd ~/javafolder
+# put your .java files (with main) — e.g. in a folder named "Java"
+NullShell
+# -> ~/javafolder/NullShell/<Name>.jar   and   run.sh
+java -jar NullShell/app.jar
 ```
-### Commands
 
 | Command | What it does |
 |---|---|
-| `NullShell` | Build the current folder |
-| `NullShell <dir>` | Build the given folder (finds nested manifests too) |
-| `NullShell --setup` | Install tools + android.jar + keystore only |
-| `NullShell --install` | Install as a global command (`NullShell` / `nullshell`) |
-| `NullShell --owner` | Show owner details |
-| `NullShell --help` | Show help |
+| `NullShell` | Auto-detect and build the current folder |
+| `NullShell <dir>` | Build the given folder |
+| `NullShell --jar [dir]` | Force pure Java `.jar` build |
+| `NullShell --run [dir]` | Pure Java build **+ run** |
+| `NullShell --all [dir]` | Build **every** sub-project in the folder |
+| `NullShell --apk [dir]` | Force Android APK build |
+| `NullShell --setup` | Install tools only |
+| `NullShell --install` | Install as a global command |
+| `NullShell --clean [dir]` | Remove build artifacts |
+| `NullShell --owner` / `--help` | Info |
 
 ---
 
-## 📱 Installs on any Android device
+## 🧪 Build everything with ONE command
 
-Old projects often declare a very old `targetSdkVersion`. Newer Android **blocks**
-installing such APKs:
+The package ships two ready folders:
 
-| Android version | Minimum `targetSdkVersion` to install |
-|---|---|
-| Android 14 (API 34) | 23 |
-| Android 15 (API 35) | 24 |
-| Android 16 / 17 (API 36/37) | 24 |
+```
+app/    -> Android sample (AndroidManifest.xml + src/ + res/)
+Java/   -> Pure Java sample (HelloJava.java with main())
+```
 
-NullShell **forces `minSdkVersion=21` and `targetSdkVersion=30`** while building (on a
-temporary copy — your manifest is never modified). Result: the APK installs cleanly from
-**Android 5.0 all the way to Android 16/17/18**. You can override if you want:
+**From the NullShell folder, one command builds BOTH:**
 
 ```bash
-NULLSHELL_MIN_SDK=24 NULLSHELL_TARGET_SDK=34 NullShell
+cd ~/NullShell
+NullShell            # -> builds app/ (APK) AND Java/ (JAR) automatically
 ```
 
-> **Still "App not installed"?** Usually one of these:
-> 1. An older version with a **different signature** is installed → uninstall it first.
-> 2. The APK copied incompletely → rebuild / recopy.
-> 3. Play Protect warning → tap **Install anyway**.
+NullShell auto-detects: if the current folder has no project but has sub-folders
+that do, it builds **every** one of them. (Force it any time with `NullShell --all`.)
+
+Or build just one:
+
+```bash
+NullShell app        # -> app/NullShell/<AppName>.apk
+NullShell Java       # -> Java/NullShell/app.jar
+NullShell --run Java # build Java + run it
+```
+
+Whatever code is inside a folder (small or huge), `NullShell` builds it.
 
 ---
 
-## 📁 Project structure it understands
+## ⚙️ Config file — `nullshell.conf`
 
+```ini
+MIN_SDK=21
+TARGET_SDK=30
+APP_NAME=MyApp
+JAVAC_RELEASE=            # blank = auto
+# KEYSTORE=/sdcard/my.keystore
+# KS_PASS=password
+# KS_ALIAS=mykey
+SKIP_SIGN=
 ```
-MyApp/
-├── AndroidManifest.xml        # required
-├── src/                       # .java sources  (or java/  or  app/src/main/java/)
-│   └── com/example/app/MainActivity.java
-├── res/                       # layouts, values, drawables  (or app/src/main/res/)
-├── assets/                    # optional
-└── libs/*.jar                 # optional libraries
-```
+
+---
+
+## 📁 Layouts it understands
+
+**Android (flat):** `AndroidManifest.xml` · `src/` · `res/` · `assets/` · `libs/` · `lib/`
+
+**Android (Studio):** `app/src/main/{AndroidManifest.xml,java,res,assets}` · `app/libs/`
+
+**Pure Java:** any `.java` in the folder / `src/` / `java/` / `Java/` — with `main()`.
 
 ---
 
 ## 🔧 How it works
 
-```
-Java sources + res/ + AndroidManifest.xml
-        │
-        ├─ 1. aapt2 compile      → resources compiled
-        ├─ 2. aapt2 link         → base.apk + R.java  (min/target SDK forced)
-        ├─ 3. javac              → .class files
-        ├─ 4. d8 / dx            → classes.dex
-        ├─ 5. zip + zipalign     → packaged + aligned
-        └─ 6. apksigner          → signed (v1+v2+v3), installable APK
-```
+**Android:** `aapt2 compile → aapt2 link → javac → d8 (multi-dex) → zip+zipalign → apksigner`
 
-## 🛡️ Tamper Protection
+**Java:** `javac → detect main() → jar cfm → runnable .jar (+ run.sh)`
 
-NullShell carries a **SHA-256 seal** over its owner identity block. At every startup it
-recomputes the seal and compares. Any change to the owner block → **TAMPER DETECTED**,
-the tool is blocked.
+---
 
-> **Note (honest):** a strong deterrent, not unbreakable magic — no pure shell script can
-> be fully tamper-proof. Casual editing of the owner name is detected and blocked, and
-> the original credits always remain in the header and this README.
+## ⚠️ Honest limits
+
+- Java/Android **framework** builder — **no Gradle dependency resolution** (provide jars in `libs/`).
+- No tool guarantees "zero errors for any code". NullShell gives clear errors + hints + logs.
+- `minSdk`/`targetSdk` forced for install compatibility (override in `nullshell.conf`).
+- Swing/GUI apps compile into a JAR, but running a GUI needs a display (Termux is headless).
 
 ---
 
 ## 📜 License
 
-Released under the **MIT License**. Created and owned by **Hari Jadhav Ji** — keep the credits intact.
-
----
+MIT. Created and owned by **Hari Jadhav Ji** — keep the credits intact.
 
 <div align="center">
 
